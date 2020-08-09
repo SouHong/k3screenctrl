@@ -903,6 +903,7 @@ int output_host_sh()
 		fprintf(fp, "echo %d\n", spd_upload);	//5. Host upload speed
 		fprintf(fp, "echo %d\n", brand);		//6. Host brand
 	}
+	fprintf(fp, "echo 0"); //7. Fix incomplete script error
 	fclose(fp);
 	fp = NULL;
 
