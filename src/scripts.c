@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "scripts.h"
 
@@ -23,7 +25,8 @@ char *script_get_output(const char *script) {
     }
 
     if (fread(ret, 1, SCRIPT_OUTPUT_BUFFER_SIZE, fp) == 0) {
-        syslog(LOG_ERR, "could not read from stream: %s\n", strerror(errno));
+        if (ferror(fp))
+            syslog(LOG_ERR, "could not read from stream: %s\n", strerror(errno));
         free(ret);
         ret = NULL;
     }
