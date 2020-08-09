@@ -94,6 +94,10 @@ void pollin_loop(int serial_fd, int signal_fd) {
     fds[1].events = POLLIN;
 
     while (1) {
+        if (!nvram_get("mcu_version")) {
+            request_mcu_version();
+        }
+
         int readyfds = poll(fds, sizeof(fds) / sizeof(struct pollfd),
                             SERIAL_POLL_INTERVAL_MS);
         if (readyfds < 0) {
@@ -152,7 +156,6 @@ int main(int argc, char *argv[]) {
 
     if (boot_mode == BOOT_MODE_APP) {
         frame_set_received_callback(frame_handler);
-        request_mcu_version();
         page_send_initial_data();
         refresh_screen_timeout();
         alarm(CFG->update_interval);
