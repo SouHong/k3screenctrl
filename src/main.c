@@ -132,11 +132,6 @@ int main(int argc, char *argv[]) {
 
     update_all_info();
 
-    if (CFG->test_mode) {
-        print_all_info();
-        return 0;
-    }
-
     if (screen_initialize(CFG->skip_reset, boot_mode) == FAILURE) {
         return -EIO;
     }
@@ -147,6 +142,12 @@ int main(int argc, char *argv[]) {
 
     if ((signal_fd = signal_setup()) < 0) {
         return -EIO;
+    }
+
+    if (CFG->test_mode) {
+        frame_set_received_callback(frame_handler);
+        print_all_info();
+        return 0;
     }
 
     if (boot_mode == BOOT_MODE_APP) {

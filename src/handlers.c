@@ -25,8 +25,10 @@ void handle_mcu_version(const unsigned char *payload, int len) {
     g_mcu_version.major_ver = payload[3];
 
 #if defined(BCMARM)
-	snprintf(mcu_version, sizeof(mcu_version), "%hhd.%hhd.%hhd",payload[3], payload[2], payload[0]);
-	nvram_set("mcu_version",mcu_version);
+	snprintf(mcu_version, sizeof(mcu_version), "%hhd.%hhd.%hhd",
+			g_mcu_version.major_ver, g_mcu_version.minor_ver,
+			g_mcu_version.patch_ver);
+	nvram_set("mcu_version", mcu_version);
     syslog(LOG_WARNING, "MCU reported version as %hhd.%hhd.%hd\n",
 #else
     syslog(LOG_INFO, "MCU reported version as %hhd.%hhd.%hd\n",

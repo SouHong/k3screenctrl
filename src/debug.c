@@ -92,10 +92,11 @@ static void print_buf(const unsigned char *buf, int len) {
     printf("\n");
 }
 void print_mcu_version(){
+    int ver = request_mcu_version();
 #if defined(BCMARM)
-	printf("MCU_VERSION:%s\n",nvram_get("mcu_version"));
+	printf("MCU_VERSION_CODE:%x\n", ver);
+	printf("MCU_VERSION:%s\n",nvram_safe_get("mcu_version"));
 #else
-    int ver=request_mcu_version();
-    printf("MCU_VERSION:%x\n",ver);
+    printf("MCU_VERSION:%x\n", ver);
 #endif
 }
