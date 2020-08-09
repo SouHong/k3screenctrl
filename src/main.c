@@ -110,6 +110,14 @@ void pollin_loop(int serial_fd, int signal_fd) {
                 signal_notify();
             }
         }
+
+        if (nvram_match("screen_enable", "0") && (fds[1].revents & POLLIN)) {
+            sleep(1);
+            page_switch_to(PAGE_BASIC_INFO);
+            request_notify_event(EVENT_SLEEP);
+            syslog(LOG_WARNING, "Shut down the screen");
+            return;
+        }
     }
 }
 
