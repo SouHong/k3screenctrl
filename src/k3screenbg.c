@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <signal.h>
 #include <shutils.h>
 #include <sys/stat.h>
@@ -9,30 +8,21 @@
 #include <sys/shm.h>
 #include <curl/curl.h>
 #include <json.h>
-#include "../networkmap/networkmap.h"
-#include "config.h"
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
+
+#include "networkmap.h"
+#include "config.h"
+#include "k3screenbg.h"
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define NMP_CACHE_FILE "/tmp/nmp_cache.js"
 #define REFRESH_INTERVAL_MIN 60 * 60 * 1
 
-static unsigned long long last_upload_wan = 0, last_dnload_wan = 0;
-static int NUM_2G = 0, NUM_5G = 0;
-static int swmode = 0;
-static time_t last_time = 0;
-
-typedef struct Node
-{
-	char mac[18];
-	char ip[15];
-	unsigned long up_data;
-	unsigned long dn_data;
-	unsigned long last_up_data;
-	unsigned long last_dn_data;
-	struct Node *pNext; //定义一个结构体指针，指向下一次个与当前节点数据类型相同的
-} NODE;
+unsigned long long last_upload_wan = 0, last_dnload_wan = 0;
+int NUM_2G = 0, NUM_5G = 0;
+time_t last_time = 0;
 
 NODE *nodeHead = NULL;
 NODE *nodeEnd = NULL;
@@ -217,7 +207,7 @@ void AppendNode(char mac[18], char ip[15], signed int up_data, signed int dn_dat
 	nodeEnd = temp; //尾结点应该始终指向最后一个
 }
 
-void FreeNodeList()
+void screenbg_clean()
 {
 	NODE *temp = nodeHead; //定义一个临时变量来指向头
 	while (temp)
@@ -386,6 +376,7 @@ int get_traffic_data(char mac[18], char ip[15])
 	char buffer[4096];
 	char cmd[128];
 	signed int up_data = 0, dn_data = 0;
+	int swmode = nvram_get_int("sw_mode"); //1=router,2=ap,3=rp or aimesh,4=wb
 	if (swmode != 1) //not router mode
 		return -1;
 	if ((pipo_stream = popen("iptables --list", "r")) == NULL)
@@ -489,8 +480,8 @@ int get_traffic_wan_data(unsigned long long *rx_data, unsigned long long *tx_dat
 				}
 			}
 #endif /* RTCONFIG_BCM5301X_TRAFFIC_MONITOR */
-			if (!netdev_calc(ifname, ifname_desc, (unsigned long *)&rx, (unsigned long *)&tx,
-							 ifname_desc2, (unsigned long *)&rx2, (unsigned long *)&tx2,
+			if (!netdev_calc(ifname, ifname_desc, (unsigned long long *)&rx, (unsigned long long *)&tx,
+							 ifname_desc2, (unsigned long long *)&rx2, (unsigned long long *)&tx2,
 							 nv_lan_ifname, nv_lan_ifnames))
 				continue;
 
@@ -635,6 +626,7 @@ int output_wan_sh()
 	int CONNECTED = 0, UPLOAD_BPS = 0, DOWNLOAD_BPS = 0, MODE = 0;
 	FILE *fp = NULL;
 	unsigned long long now_upload_wan = 0, now_dnload_wan = 0;
+	int swmode = nvram_get_int("sw_mode"); //1=router,2=ap,3=rp or aimesh,4=wb
 
 	bzero(IPV4_ADDR, sizeof(IPV4_ADDR));
 	MODE = (swmode == 1 ? 0 : 1);
@@ -914,15 +906,18 @@ int output_host_sh()
 
 int output_weather_sh()
 {
-	time_t tmpcal_ptr = 0;
-	struct tm *tmp_ptr = NULL;
+	time_t now;
+	struct tm local;
 	char ch_date[11], ch_time[6];
 	int week = 0;
-	time(&tmpcal_ptr);
-	tmp_ptr = localtime(&tmpcal_ptr);
-	snprintf(ch_date, sizeof(ch_date), "%d-%d-%d", (1900 + tmp_ptr->tm_year), (1 + tmp_ptr->tm_mon), tmp_ptr->tm_mday);
-	snprintf(ch_time, sizeof(ch_time), "%02d:%02d", tmp_ptr->tm_hour, tmp_ptr->tm_min);
-	week = tmp_ptr->tm_wday;
+
+	setenv("TZ", nvram_safe_get("time_zone_x"), 1);
+	tzset();
+	time(&now);
+	localtime_r(&now, &local);
+	snprintf(ch_date, sizeof(ch_date), "%d-%d-%d", (1900 + local.tm_year), (1 + local.tm_mon), local.tm_mday);
+	snprintf(ch_time, sizeof(ch_time), "%02d:%02d", local.tm_hour, local.tm_min);
+	week = local.tm_wday;
 
 	char url[128];
 	char url1[] = "https://api.seniverse.com/v3/weather/now.json";
@@ -992,10 +987,8 @@ GETERR:
 	return ret;
 }
 
-void sig_handler(int signal_num)
+/*void sig_handler(int signal_num)
 {
-	swmode = nvram_get_int("sw_mode"); //1=router,2=ap,3=rp or aimesh,4=wb
-
 	//output_basic_sh();
 	output_wan_sh();
 	output_wifi_sh();
@@ -1017,4 +1010,4 @@ int main(int argc, char *argv[])
 		alarm(DEFAULT_UPDATE_INTERVAL);
 		pause();
 	}
-}
+}*/

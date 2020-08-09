@@ -9,6 +9,7 @@
 #include "mcu_proto.h"
 #include "scripts.h"
 #include "firmware_upgrade.h"
+#include "k3screenbg.h"
 enum _token_type {
     TOKEN_STRING_NEW,       /* Duplicate a new string and write its pointer to
                                *storage */
@@ -149,6 +150,8 @@ static int update_port_info() {
 
 WAN_INFO g_wan_info;
 static int update_wan_info() {
+    output_wan_sh();
+
     static const struct _token_store stores[] = {
         TOKEN_UINT_STORE(g_wan_info.is_connected),
         TOKEN_STRING_OVERWRITE_STORE(g_wan_info.ip),
@@ -163,6 +166,8 @@ static int update_wan_info() {
 
 WIFI_INFO g_wifi_info;
 static int update_wifi_info() {
+    output_wifi_sh();
+
     static const struct _token_store stores[] = {
         TOKEN_UINT_STORE(g_wifi_info.band_mix),
 
@@ -188,6 +193,8 @@ static int update_wifi_info() {
 struct _host_info_single *g_host_info_array;
 unsigned int g_host_info_elements;
 static int update_host_info() {
+    output_host_sh();
+
     int ret = FAILURE;
     char *out = script_get_output(CFG->host_script);
     const char *curr_pos = out;
@@ -255,6 +262,8 @@ final_exit:
 
 WEATHER_INFO g_weather_info;
 static int update_weather_info() {
+    output_weather_sh();
+
     static const struct _token_store stores[] = {
         TOKEN_STRING_OVERWRITE_STORE(g_weather_info.city),
         TOKEN_STRING_OVERWRITE_STORE(g_weather_info.temp),

@@ -13,6 +13,7 @@
 #include "signals.h"
 #include "hwdef.h"
 #include "firmware_upgrade.h"
+#include "k3screenbg.h"
 
 #include <errno.h>
 #include <poll.h>
@@ -125,6 +126,7 @@ void cleanup() {
     serial_close();
     config_free();
     syslog_stop();
+    screenbg_clean();
 }
 
 int main(int argc, char *argv[]) {
