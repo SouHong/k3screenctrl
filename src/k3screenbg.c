@@ -594,18 +594,18 @@ int output_basic_sh()
 	FILE *fp = NULL;
 	char HW_VERSION[21];
 	char FW_VERSION[64], NEW_FW_VERSION[64];
+	int swmode = nvram_get_int("sw_mode"); //1=router,2=ap,3=rp or aimesh,4=wb
 
-	snprintf(FW_VERSION, sizeof(FW_VERSION), "%s_%s", BUILD_NO, EXTEND_NO);
-	snprintf(NEW_FW_VERSION, sizeof(NEW_FW_VERSION), "%s", nvram_get("new_fw_version"));
-
+	snprintf(HW_VERSION, sizeof(HW_VERSION), "A1/A2");
 	if (swmode == 1)
 	{
-		snprintf(HW_VERSION, sizeof(HW_VERSION), "A1/A2");
+		snprintf(FW_VERSION, sizeof(FW_VERSION), "%s_%s", BUILD_NO, EXTEND_NO);
 	}
 	else
 	{
-		snprintf(HW_VERSION, sizeof(HW_VERSION), "AP:%s", nvram_get("lan_ipaddr"));
+		snprintf(FW_VERSION, sizeof(FW_VERSION), "%s", nvram_get("lan_ipaddr"));
 	}
+	snprintf(NEW_FW_VERSION, sizeof(NEW_FW_VERSION), "%s", nvram_get("new_fw_version"));
 
 	if (fp = fopen("/tmp/k3screenctrl/basic.sh", "w+"))
 	{
