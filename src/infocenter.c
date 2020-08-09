@@ -255,16 +255,16 @@ final_exit:
 
 WEATHER_INFO g_weather_info;
 static int update_weather_info() {
-	    static const struct _token_store stores[] = {
-	            TOKEN_STRING_OVERWRITE_STORE(g_weather_info.city),
-	            TOKEN_STRING_OVERWRITE_STORE(g_weather_info.temp),
-	            TOKEN_STRING_OVERWRITE_STORE(g_weather_info.date),
-	            TOKEN_STRING_OVERWRITE_STORE(g_weather_info.time),
-	            TOKEN_BYTE_STORE(g_weather_info.weather),
-	            TOKEN_BYTE_STORE(g_weather_info.week),
-	            TOKEN_BYTE_STORE(g_weather_info.error),
-	        };
-	       return update_storage_from_script(CFG->weather_script, stores, sizeof(stores) / sizeof(stores[0]));
+    static const struct _token_store stores[] = {
+        TOKEN_STRING_OVERWRITE_STORE(g_weather_info.city),
+        TOKEN_STRING_OVERWRITE_STORE(g_weather_info.temp),
+        TOKEN_STRING_OVERWRITE_STORE(g_weather_info.date),
+        TOKEN_STRING_OVERWRITE_STORE(g_weather_info.time),
+        TOKEN_BYTE_STORE(g_weather_info.weather),
+        TOKEN_BYTE_STORE(g_weather_info.week),
+        TOKEN_BYTE_STORE(g_weather_info.error),
+    };
+    return update_storage_from_script(CFG->weather_script, stores, sizeof(stores) / sizeof(stores[0]));
 }
 
 int update_page_info(PAGE page) {
