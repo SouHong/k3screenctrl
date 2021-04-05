@@ -431,121 +431,153 @@ int get_traffic_data(char mac[18], char ip[15])
 // traffic monitor
 int get_traffic_wan_data(unsigned long long *rx_data, unsigned long long *tx_data)
 {
-	FILE *fp;
+	FILE * fp;
 	char buf[256];
 	unsigned long long rx = 0, tx = 0, curr_rx = 0, curr_tx = 0;
 	unsigned long long rx2 = 0, tx2 = 0;
-	unsigned long long wired_all_rx = 0, wired_all_tx = 0;
 	ino_t inode;
 	struct ifino_s *ifino;
-	static struct ifname_ino_tbl ifstat_tbl = {0};
+	static struct ifname_ino_tbl ifstat_tbl = { 0 };
 	char *p;
 	char *ifname;
 	char ifname_desc[12], ifname_desc2[12];
-	int wired_valid = 0;
-	char *nv_lan_ifname;
-	char *nv_lan_ifnames;
+	int sum;
+	char buf_lan_ifname[2 * IFNAMSIZ], buf_lan_ifnames[20 * IFNAMSIZ];
+	char *nv_lan_ifname = NULL;
+	char *nv_lan_ifnames = NULL;
+	struct desc_sum_s {
+		const int exact;
+		const char *desc;
+		int valid;
+		unsigned long long all_rx, all_tx;
+	} desc_sum_tbl[] = {
+		{ 1, "WIRED", 0, 0, 0 },
+		{ 0, "WIRELESS0", 0, 0, 0 },
+		{ 0, "WIRELESS1", 0, 0, 0 },
 
-	nv_lan_ifname = nvram_safe_get("lan_ifname");
-	nv_lan_ifnames = nvram_safe_get("lan_ifnames");
+		{ 0, NULL, 0, 0, 0 },
+	}, *ds;
+	unsigned long long sum_rx = 0, sum_tx = 0;
+
+	if (strlen(nvram_safe_get("lan_ifname")) >= sizeof(buf_lan_ifname))
+		nv_lan_ifname = strdup(nvram_safe_get("lan_ifname"));
+	if (!nv_lan_ifname) {
+		strlcpy(buf_lan_ifname, nvram_safe_get("lan_ifname"), sizeof(buf_lan_ifname));
+		nv_lan_ifname = buf_lan_ifname;
+	}
+
+	if (strlen(nvram_safe_get("lan_ifnames")) >= sizeof(buf_lan_ifnames))
+		nv_lan_ifnames = strdup(nvram_safe_get("lan_ifnames"));
+	if (!nv_lan_ifnames) {
+		strlcpy(buf_lan_ifnames, nvram_safe_get("lan_ifnames"), sizeof(buf_lan_ifnames));
+		nv_lan_ifnames = buf_lan_ifnames;
+	}
 
 	fp = fopen("/proc/net/dev", "r");
 
-	if (fp)
-	{
+	if (fp) {
 		fgets(buf, sizeof(buf), fp);
 		fgets(buf, sizeof(buf), fp);
-		while (fgets(buf, sizeof(buf), fp))
-		{
-			if ((p = strchr(buf, ':')) == NULL)
-				continue;
-			*p = 0;
-			if ((ifname = strrchr(buf, ' ')) == NULL)
-				ifname = buf;
-			else
-				++ifname;
-			if (sscanf(p + 1, "%llu%*u%*u%*u%*u%*u%*u%*u%llu", &rx, &tx) != 2)
-				continue;
+			while (fgets(buf, sizeof(buf), fp)) {
+				if ((p = strchr(buf, ':')) == NULL) continue;
+				*p = 0;
+				if ((ifname = strrchr(buf, ' ')) == NULL) ifname = buf;
+					else	++ifname;
+				if (sscanf(p + 1, "%llu%*u%*u%*u%*u%*u%*u%*u%llu", &rx, &tx) != 2) continue;
 #ifdef RTCONFIG_BCM5301X_TRAFFIC_MONITOR
-			/* WAN1, WAN2, LAN */
-			if (strncmp(ifname, "vlan", 4) == 0)
-			{
-				traffic_wanlan(ifname, (uint32_t *)&rx, (uint32_t *)&tx);
-			}
-			if (nvram_match("wans_dualwan", "wan none"))
-			{
-				if (strcmp(ifname, "eth0") == 0)
-				{
-					traffic_wanlan(WAN0DEV, (uint32_t *)&rx, (uint32_t *)&tx);
+				/* WAN1, WAN2, LAN */
+				if(strncmp(ifname, "vlan", 4)==0){
+					traffic_wanlan(ifname, (uint32_t *) &rx, (uint32_t *) &tx);
 				}
-			}
-#endif /* RTCONFIG_BCM5301X_TRAFFIC_MONITOR */
-			if (!netdev_calc(ifname, ifname_desc, (unsigned long long *)&rx, (unsigned long long *)&tx,
-							 ifname_desc2, (unsigned long long *)&rx2, (unsigned long long *)&tx2,
-							 nv_lan_ifname, nv_lan_ifnames))
-				continue;
+				if(nvram_match("wans_dualwan", "wan none")){
+					if(strcmp(ifname, WAN_IF_ETH)==0){
+						traffic_wanlan(WAN0DEV, (uint32_t *) &rx, (uint32_t *) &tx);
+					}
+				}
+#endif	/* RTCONFIG_BCM5301X_TRAFFIC_MONITOR */
+				if (!netdev_calc(ifname, ifname_desc, &rx, &tx, ifname_desc2, &rx2, &tx2, nv_lan_ifname, nv_lan_ifnames))
+					continue;
 
-			/* If inode of a interface changed, it means the interface was closed and reopened.
+				/* If inode of a interface changed, it means the interface was closed and reopened.
 				 * In this case, we should calculate difference of old TX/RX bytes and new TX/RX
 				 * bytes and shift from new TX/RX bytes to old TX/RX bytes.
 				 */
-			inode = get_iface_inode(ifname);
-			curr_rx = rx;
-			curr_tx = tx;
-			if ((ifino = ifname_ino_ptr(&ifstat_tbl, ifname)) != NULL)
-			{
-				if (ifino->inode && ifino->inode != inode)
-				{
-					ifino->inode = inode;
-					ifino->shift_rx = curr_rx - ifino->last_rx + ifino->shift_rx;
-					ifino->shift_tx = curr_tx - ifino->last_tx + ifino->shift_tx;
+				inode = get_iface_inode(ifname);
+				curr_rx = rx;
+				curr_tx = tx;
+				if ((ifino = ifname_ino_ptr(&ifstat_tbl, ifname)) != NULL) {
+					if (ifino->inode && ifino->inode != inode) {
+						ifino->inode = inode;
+						ifino->shift_rx = curr_rx - ifino->last_rx + ifino->shift_rx;
+						ifino->shift_tx = curr_tx - ifino->last_tx + ifino->shift_tx;
+					}
+				} else {
+					if ((ifstat_tbl.nr_items + 1) <= ARRAY_SIZE(ifstat_tbl.items)) {
+						ifino = &ifstat_tbl.items[ifstat_tbl.nr_items];
+						strlcpy(ifino->ifname, ifname, sizeof(ifino->ifname));
+						ifino->inode = inode;
+						ifino->last_rx = curr_rx;
+						ifino->last_tx = curr_tx;
+						ifino->shift_rx = ifino->shift_tx = 0;
+						ifstat_tbl.nr_items++;
+					}
 				}
-			}
-			else
-			{
-				if ((ifstat_tbl.nr_items + 1) <= ARRAY_SIZE(ifstat_tbl.items))
-				{
-					ifino = &ifstat_tbl.items[ifstat_tbl.nr_items];
-					strlcpy(ifino->ifname, ifname, sizeof(ifino->ifname));
-					ifino->inode = inode;
+
+				if (ifino != NULL) {
+					rx = curr_rx - ifino->shift_rx;
+					tx = curr_tx - ifino->shift_tx;
 					ifino->last_rx = curr_rx;
 					ifino->last_tx = curr_tx;
-					ifino->shift_rx = ifino->shift_tx = 0;
-					ifstat_tbl.nr_items++;
+				}
+
+loopagain:
+				/* If more than one interface are classified as same ifname_desc,
+				 * sum TX/RX bytes and report it later.
+				 */
+				for (sum = 0, ds = &desc_sum_tbl[0]; !sum && ds->desc != NULL; ++ds) {
+					if (!(ds->exact && !strcmp(ds->desc, ifname_desc)) &&
+					    !(!ds->exact && !strncmp(ds->desc, ifname_desc, strlen(ds->desc))))
+						continue;
+
+					ds->all_rx += rx;
+					ds->all_tx += tx;
+					ds->valid = 1;
+					sum = 1;
+				}
+
+				if (ifname_desc == "INTERNET") {
+					sum_rx = rx;
+					sum_tx = tx;
+					break;
+				}
+
+				if(strlen(ifname_desc2)) {
+					strlcpy(ifname_desc, ifname_desc2, sizeof(ifname_desc));
+					rx = rx2;
+					tx = tx2;
+					strlcpy(ifname_desc2, "", sizeof(ifname_desc2));
+					goto loopagain;
 				}
 			}
 
-			if (ifino != NULL)
-			{
-				rx = curr_rx - ifino->shift_rx;
-				tx = curr_tx - ifino->shift_tx;
-				ifino->last_rx = curr_rx;
-				ifino->last_tx = curr_tx;
+			/* Report TX/RX bytes of sumed interfaces of each ifname_desc. */
+			for (ds = &desc_sum_tbl[0]; ds->desc != NULL; ++ds) {
+				if (!ds->valid)
+					continue;
+
+				sum_rx += ds->all_rx;
+				sum_tx += ds->all_tx;
 			}
 
-		loopagain:
-			if (!strncmp(ifname_desc, "WIRED", 5))
-			{
-				wired_valid = 1;
-				wired_all_rx += rx;
-				wired_all_tx += tx;
-			}
-			if (strlen(ifname_desc2))
-			{
-				strcpy(ifname_desc, ifname_desc2);
-				rx = rx2;
-				tx = tx2;
-				strcpy(ifname_desc2, "");
-				goto loopagain;
-			}
-		}
-		if (wired_valid)
-		{
-			*rx_data = wired_all_rx;
-			*tx_data = wired_all_tx;
-		}
+		*rx_data = sum_rx;
+		*tx_data = sum_tx;
 		fclose(fp);
 	}
+
+	if (nv_lan_ifname != buf_lan_ifname)
+		free(nv_lan_ifname);
+	if (nv_lan_ifnames != buf_lan_ifnames)
+		free(nv_lan_ifnames);
 	return 0;
 }
 
@@ -644,7 +676,7 @@ int output_wan_sh()
 		strlcpy(IPV4_ADDR, nvram_get("wan1_ipaddr"), sizeof(IPV4_ADDR));
 	}
 
-	get_traffic_wan_data(&now_upload_wan, &now_dnload_wan);
+	get_traffic_wan_data(&now_dnload_wan, &now_upload_wan);
 	UPLOAD_BPS = (now_upload_wan - last_upload_wan) / DEFAULT_UPDATE_INTERVAL;
 	DOWNLOAD_BPS = (now_dnload_wan - last_dnload_wan) / DEFAULT_UPDATE_INTERVAL;
 	last_upload_wan = now_upload_wan;

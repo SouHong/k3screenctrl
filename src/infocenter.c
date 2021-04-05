@@ -151,6 +151,8 @@ static int update_port_info() {
 WAN_INFO g_wan_info;
 static int update_wan_info() {
     output_wan_sh();
+    output_wifi_sh();
+    output_host_sh();
 
     static const struct _token_store stores[] = {
         TOKEN_UINT_STORE(g_wan_info.is_connected),
